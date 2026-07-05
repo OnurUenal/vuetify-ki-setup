@@ -5,8 +5,7 @@ Vuetify-Komponenten bauen statt Div-Suppe, und Verstöße automatisch selbst
 korrigieren, ohne Rückfragen.
 
 Ausführliche Erklärung (Funktionsweise, Beweise, Hintergründe):
-https://claude.ai/code/artifact/8af0c15d-9c1b-4588-a118-684c53f385b3
-(Link muss vom Absender freigegeben sein)
+[FUNKTIONSWEISE.md](./FUNKTIONSWEISE.md)
 
 ## Einbau in 5 Schritten
 
