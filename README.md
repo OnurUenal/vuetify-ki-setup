@@ -1,233 +1,243 @@
-# Vuetify-KI-Setup für OpenCode
+# Vuetify AI Setup for OpenCode
 
-Sorgt dafür, dass KI-Assistenten in Vue-3/Vuetify-Projekten idiomatische
-Vuetify-Komponenten bauen statt Div-Suppe, und Verstöße automatisch selbst
-korrigieren, ohne Rückfragen.
+Help AI assistants build idiomatic Vuetify components in Vue 3/Vuetify projects
+instead of piles of custom `<div>` elements, and give them immediate lint
+feedback so they can correct violations without asking for confirmation.
 
-## Einbau in 5 Schritten
+## Setup in 5 steps
 
-1. `AGENTS.md` ins Projektroot legen (oder den Inhalt in eine bestehende
-   AGENTS.md übernehmen). Sie ist bei jeder KI-Nachricht im Kontext.
-2. ESLint einrichten:
+1. Copy `AGENTS.md` to your project root, or merge its contents into an existing
+   `AGENTS.md`. It provides the assistant with the project's UI rules.
+2. Set up ESLint:
    `npm i -D eslint eslint-plugin-vue`
-   Die Regelblöcke aus `eslint.config.js` in die eigene Flat-Config
-   übernehmen (oder die Datei komplett verwenden) und in der package.json
-   ein Script anlegen: `"lint": "eslint src"`.
-3. Den Ordner `.opencode/` ins Projektroot kopieren. Darin:
-   - `plugins/vue-lint-feedback.js`: lintet nach jedem KI-Edit die geänderte
-     .vue-Datei und drückt dem Modell die Verstöße samt Sofort-beheben-
-     Anweisung aufs Auge.
-   - `skills/vuetify-patterns/SKILL.md`: Gerüst für abrufbare Vuetify-Rezepte,
-     mit eigenen Standard-Patterns füllen.
-4. Einmal `npm run lint` laufen lassen. Meckert der Bestand zu laut, das
-   `files`-Glob in der eslint.config.js erst auf neue Ordner einschränken
-   (z. B. `src/features/**`).
-5. OpenCode neu starten (Config/Plugin werden beim Start geladen).
+   Merge the rule blocks from `eslint.config.js` into your existing flat config,
+   or use the entire file. Add a script to `package.json`:
+   `"lint": "eslint src"`.
+3. Copy the `.opencode/` directory to your project root. It contains:
+   - `plugins/vue-lint-feedback.js`: runs lint on the changed `.vue` file after
+     each AI edit and returns violations to the model with instructions to fix
+     them immediately.
+   - `skills/vuetify-patterns/SKILL.md`: a starting point for on-demand Vuetify
+     recipes. Fill it with your own standard patterns.
+4. Run `npm run lint` once. If existing code produces too many violations,
+   initially restrict the `files` glob in `eslint.config.js` to new directories,
+   such as `src/features/**`.
+5. Restart OpenCode so it loads the configuration and plugin.
 
-## Testen
+> The README is in English. The bundled agent instructions, skill template,
+> lint messages, and plugin feedback are currently in German. Log excerpts
+> below are translated into English for readability; actual messages remain
+> in German.
 
-In der OpenCode-TUI eingeben:
+## Try it out
 
-    Ersetze den Inhalt von src/App.vue exakt durch:
-    <template><div class="toolbar"><button @click="add">Neu</button></div></template>
-    <script setup>function add() {}</script>
-    Erledige den Auftrag vollständig.
+Enter this prompt in the OpenCode TUI:
 
-Erwartung: Das Modell schreibt erst wörtlich, bekommt sofort das
-ESLint-Feedback und korrigiert selbstständig zu v-btn und Co., ohne
-nachzufragen. Danach ist `npm run lint` grün.
+```text
+Replace the contents of src/App.vue with exactly this:
+<template><div class="toolbar"><button @click="add">New</button></div></template>
+<script setup>function add() {}</script>
+Complete the task fully.
+```
 
-## Warum die KI überhaupt Divs baut
+Expected behavior: the model first writes the requested code, receives ESLint
+feedback immediately, and replaces the offending elements with `v-btn` and
+other Vuetify components without asking for confirmation. Afterward,
+`npm run lint` should pass.
 
-**Statistisches Vorwissen.** Die Trainingsdaten der Modelle sind voll mit
-rohem HTML, CSS und React. Idiomatischer Vuetify-Code ist selten. Ohne
-Gegendruck fällt jedes Modell auf das statistisch Häufigste zurück:
-`<div class="…">` plus eigenes CSS, selbst wenn `<v-row>` daneben im
-Projekt steht.
+## Why AI assistants reach for divs
 
-**Doku-Zugriff ändert kein Verhalten.** Ein Vuetify-MCP macht die Doku
-nachschlagbar, zwingt aber niemanden, sie zu benutzen. Ein Nachschlagewerk
-ist keine Hausordnung.
+**Training defaults.** Models have seen large amounts of raw HTML, CSS, and
+React code. Without clear project rules, they may fall back to familiar
+patterns such as `<div class="…">` plus custom CSS, even when the project
+already uses `<v-row>`.
 
-**Es fehlt die Rückkopplung.** Solange nichts rot wird, gilt Div-Suppe als
-Erfolg. Der Kern der Lösung ist deshalb nicht besseres Bitten, sondern
-deterministische Durchsetzung: Regeln, die bei jedem Turn präsent sind,
-plus ein Linter, der Verstöße mit Exit-Code 1 quittiert.
+**Documentation access does not enforce behavior.** A Vuetify MCP server makes
+documentation available, but does not require the assistant to consult it.
+Reference material is not a set of project rules.
 
-## So greift alles ineinander
+**The feedback loop is missing.** Without a failing check, custom div-based UI
+can appear to be a successful result. This setup adds enforceable rules:
+project instructions available to the assistant, plus a linter that reports
+violations with exit code 1.
 
-Was passiert, wenn die KI eine `.vue`-Datei anfasst, Schritt für Schritt:
+## How the pieces fit together
 
-1. **Auftrag:** „Füge ein Suchfeld hinzu." Das Modell hat dabei die
-   [AGENTS.md](./AGENTS.md) im Kontext, bei jeder einzelnen Nachricht neu.
-   Im Normalfall entsteht deshalb direkt Vuetify-Code.
-2. **Schreiben:** Das Modell ändert die Datei über sein write- oder
-   edit-Tool.
-3. **Hook:** Unmittelbar danach feuert das
-   [Plugin](./.opencode/plugins/vue-lint-feedback.js)
-   (`tool.execute.after`) und lässt ESLint nur über diese eine Datei
-   laufen. Kostet etwa eine Sekunde, unabhängig von der Projektgröße.
-4. **Prüfung:** ESLint parst das Template in einen Syntaxbaum. Darauf
-   matchen die zwei Regeln aus der [eslint.config.js](./eslint.config.js):
-   verbotene native Elemente (button, input, table, …) sowie die
-   Selektoren für `<div class="…">` und Inline-Styles. Geprüft wird nur
-   der `<template>`-Teil; die Script-Logik bleibt bewusst frei.
-5. **Feedback:** Bei Treffern hängt das Plugin die Meldungen samt Anweisung
-   („sofort selbstständig beheben, nicht nachfragen") ans Tool-Ergebnis.
-   Für das Modell sieht das aus, als käme die Rückmeldung vom Schreib-Tool
-   selbst: unübersehbar, und in jeder Runde frisch.
-6. **Korrektur:** Das Modell bessert nach und schreibt erneut; damit feuert
-   der Hook wieder. Die Schleife endet erst, wenn ESLint nichts mehr meldet.
-7. **Letzter Riegel:** `npm run lint` als Pflicht-Check in der CI prüft
-   modellunabhängig. Div-Suppe kann nicht gemerged werden, selbst wenn ein
-   Modell komplett danebengreift.
+When the assistant changes a `.vue` file, the intended workflow is:
 
-Warum das robust bleibt: Chat-Anweisungen verblassen in langen Sessions,
-aber die AGENTS.md wird jede Runde neu eingespeist, und das Lint-Feedback
-klebt direkt am Tool-Ergebnis, dem Modelle am stärksten vertrauen. Der
-durchsetzende Teil ist zudem deterministisch: ESLint wird nie müde,
-vergisst keine Regel und wird mit der Zeit nicht langsamer, weil immer nur
-die eine geänderte Datei geprüft wird. Die Masse der Regeln gehört deshalb
-in den Linter (kostet dort null Kontext-Tokens), die AGENTS.md bleibt eine
-Seite, und nur abrufbares Spezialwissen wandert in Skills.
+1. **Request:** “Add a search field.” The assistant has the
+   [AGENTS.md](./AGENTS.md) instructions in context and should choose Vuetify
+   components from the start.
+2. **Write:** The assistant changes the file using its `write` or `edit` tool.
+3. **Hook:** The [plugin](./.opencode/plugins/vue-lint-feedback.js) runs after
+   the tool call via `tool.execute.after` and invokes ESLint on that file only,
+   keeping the feedback focused on the current change.
+4. **Check:** ESLint parses the template into an abstract syntax tree. Two rules
+   in [eslint.config.js](./eslint.config.js) identify restricted native elements
+   (`button`, `input`, `table`, and others), `<div class="…">`, and inline styles.
+   These restrictions target the `<template>` section, leaving script logic
+   unrestricted by these rules.
+5. **Feedback:** If violations are found, the plugin appends the messages and
+   an instruction to fix them immediately without asking for confirmation to
+   the tool result. The feedback appears directly alongside the write result.
+6. **Correction:** The assistant edits the file again, triggering the hook
+   again. The intended loop continues until ESLint reports no violations.
+7. **Final check:** Configure `npm run lint` as a required CI check to enforce
+   the rules independently of the model and prevent noncompliant changes
+   from being merged.
 
-## Schicht 1: AGENTS.md, die Hausordnung
+The division of responsibilities matters: ESLint provides deterministic
+checks, while the assistant interprets the feedback and makes corrections.
+Keep machine-checkable rules in the linter, keep `AGENTS.md` short, and put
+specialized knowledge that is only needed occasionally into skills.
 
-OpenCode lädt [AGENTS.md](./AGENTS.md) aus dem Projektroot in jede Session
-(global: `~/.config/opencode/AGENTS.md`; ein vorhandenes `CLAUDE.md` wird
-als Fallback gelesen). Hier gehören die UI-Regeln hin, nicht in einen
-Skill. Entscheidend sind harte Formulierungen, eine Ersetzungstabelle und
-ein Falsch/Richtig-Paar: Negative Beispiele wirken bei Modellen erstaunlich
-gut.
+## Layer 1: AGENTS.md — project rules
 
-## Schicht 2: ESLint als harte Grenze
+OpenCode loads [AGENTS.md](./AGENTS.md) from the project root into the session.
+Global instructions can live at `~/.config/opencode/AGENTS.md`, and an existing
+`CLAUDE.md` can serve as a fallback. Put persistent UI rules here rather than
+in a skill. Clear requirements, a replacement table, and a wrong/right example
+make the intended behavior concrete.
 
-Zwei Regeln aus `eslint-plugin-vue` erledigen die Arbeit
-(siehe [eslint.config.js](./eslint.config.js)):
+## Layer 2: ESLint — enforceable constraints
 
-- `vue/no-restricted-html-elements` verbietet native Elemente mit einer
-  eigenen Meldung pro Element. Die Meldung sagt der KI gleich, was sie
-  stattdessen nehmen soll.
-- `vue/no-restricted-syntax` matcht per AST-Selektor gezielt
-  `<div class="…">` und Inline-Styles. Ein nackter `<div>` ohne `class`
-  bleibt erlaubt, den braucht man legitim als Wrapper.
+Two rules from `eslint-plugin-vue` do the work
+(see [eslint.config.js](./eslint.config.js)):
 
-### Der Beweis (ESLint 10.6.0, eslint-plugin-vue 10.9.2)
+- `vue/no-restricted-html-elements` forbids native elements and provides a
+  custom message for each one, telling the assistant which component to use.
+- `vue/no-restricted-syntax` uses AST selectors to target `<div class="…">`
+  and inline styles. A plain `<div>` without a `class` remains allowed for
+  cases where a wrapper is needed.
 
-Typische KI-Div-Suppe:
+### Recorded example (ESLint 10.6.0, eslint-plugin-vue 10.9.2)
+
+A typical div-heavy template:
 
 ```vue
 <div class="page-wrapper">
   <div class="toolbar" style="display: flex">
-    <div class="toolbar__title">Kunden</div>
-    <button class="btn primary" @click="add">Neu</button>
+    <div class="toolbar__title">Customers</div>
+    <button class="btn primary" @click="add">New</button>
   </div>
-  <input v-model="query" placeholder="Suche" />
+  <input v-model="query" placeholder="Search" />
   <table>…</table>
-  <div>Plain-Wrapper ohne class</div>
+  <div>Plain wrapper without a class</div>
 </div>
 ```
 
-Ergebnis von `npx eslint bad.vue good.vue`:
+The original README records the following result from running
+`npx eslint bad.vue good.vue` against example fixtures. Messages are translated
+below. The bundled configuration targets `src/**/*.vue`, so place your own
+fixtures under `src/` or adjust the `files` glob when reproducing this check.
 
 ```text
 bad.vue
-  2:8   error  Kein <div class="…"> für Layout/Styling: nutze v-container/v-row/v-col, v-sheet oder v-card …
-  3:10  error  Kein <div class="…"> für Layout/Styling: …
-  3:26  error  Keine Inline-Styles: nutze Vuetify-Props, Utility-Klassen (pa-*, ma-*, d-flex) oder Theme-Farben
-  4:12  error  Kein <div class="…"> für Layout/Styling: …
-  5:7   error  Nutze <v-btn> statt <button>
-  7:5   error  Nutze <v-text-field>/<v-checkbox>/<v-switch>/<v-file-input> statt <input>
-  8:5   error  Nutze <v-data-table>/<v-table> statt <table>
+  2:8   error  No <div class="…"> for layout/styling: use v-container/v-row/v-col, v-sheet, or v-card …
+  3:10  error  No <div class="…"> for layout/styling: …
+  3:26  error  No inline styles: use Vuetify props, utility classes (pa-*, ma-*, d-flex), or theme colors
+  4:12  error  No <div class="…"> for layout/styling: …
+  5:7   error  Use <v-btn> instead of <button>
+  7:5   error  Use <v-text-field>/<v-checkbox>/<v-switch>/<v-file-input> instead of <input>
+  8:5   error  Use <v-data-table>/<v-table> instead of <table>
 
-✖ 7 problems (7 errors, 0 warnings)   Exit-Code 1
-good.vue (v-toolbar, v-text-field, v-data-table): 0 Fehler
+✖ 7 problems (7 errors, 0 warnings)   Exit code 1
+good.vue (v-toolbar, v-text-field, v-data-table): 0 errors
 ```
 
-**Bestandscode voller Verstöße?** Regeln zuerst über das `files`-Glob auf
-neue Bereiche begrenzen (z. B. `src/features/**`) oder das Aufräumen als
-erste Aufgabe an die KI geben, Ordner für Ordner. Zusätzlich lohnt sich
-[eslint-plugin-vuetify](https://github.com/vuetifyjs/eslint-plugin-vuetify):
-Es fängt veraltete Vuetify-Props, -Klassen und -Komponenten (v2→v3, v3→v4).
+**Lots of violations in existing code?** Start by restricting the rules to
+new areas with the `files` glob, such as `src/features/**`, or ask the assistant
+to clean up existing code one directory at a time. You can also consider
+[eslint-plugin-vuetify](https://github.com/vuetifyjs/eslint-plugin-vuetify)
+for checks related to deprecated Vuetify props, classes, and components during
+version migrations.
 
-## Schicht 3: das Auto-Korrektur-Plugin
+## Layer 3: The correction feedback plugin
 
-Damit die KI Verstöße im selben Arbeitsschritt sieht, hängt das
-[Plugin](./.opencode/plugins/vue-lint-feedback.js) nach jedem
-`edit`/`write` an einer `.vue`-Datei das ESLint-Ergebnis an die
-Tool-Ausgabe an. Die API: Hook `tool.execute.after`, Dateipfad in
-`input.args.filePath`, `$` ist die Bun-Shell. Ablageort projektweit:
-`.opencode/plugins/`, global: `~/.config/opencode/plugins/`.
+The [plugin](./.opencode/plugins/vue-lint-feedback.js) appends ESLint output
+to the tool result after each `edit` or `write` to a `.vue` file, so the
+assistant sees violations within the same task. It uses the
+`tool.execute.after` hook, reads the file path from `input.args.filePath`,
+and runs ESLint through Bun's `$` shell. Install it in `.opencode/plugins/`
+for a project or `~/.config/opencode/plugins/` globally.
 
-Wichtig ist der **imperative Meldungstext** („sofort selbstständig beheben,
-nicht nachfragen"): Mit weicher Formulierung fragen Modelle bei wörtlich
-bindenden Aufträgen („ersetze exakt durch …") sonst erst zurück, statt zu
-korrigieren.
+The **direct instruction in the feedback** matters: “Fix these violations
+immediately, without asking for confirmation.” A softer message may cause
+models to ask before correcting code when the original request specified an
+exact replacement.
 
-### Der Beweis (live, OpenCode 1.17.13)
+### Recorded live example (OpenCode 1.17.13)
 
-Reproduziert am 05.07.2026 headless per `opencode run`, Plugin exakt wie in
-diesem Repo, Projekt bewusst ohne weitere Hilfen, getestet mit Gemini 2.5
-Flash und lokal mit Qwen3-VL 32B. Erst schreibt das Modell auf Anweisung
-eine Verstoß-Datei: Das Plugin hängt die Meldungen an, das Modell
-korrigiert selbstständig. Auszug aus dem gespeicherten Tool-Output:
+The original README reports a headless test using `opencode run` on
+July 5, 2026, with the plugin from this repository and no additional project
+instructions. It describes tests with Gemini 2.5 Flash and a local Qwen3-VL
+32B model: the model writes a file with violations, receives the appended
+feedback, and corrects the code. The following excerpt is translated from
+the recorded tool output:
 
 ```text
-# Lauf A: write-Tool-Output nach bewusster Verstoß-Datei
-[ESLint] Regelverstöße in dieser Datei:
+# Run A: write-tool output after deliberately introducing violations
+[ESLint] Rule violations in this file:
 src/App.vue
-  2:8  error  Kein <div class="…"> für Layout/Styling: nutze v-container/v-row/v-col, v-sheet oder v-card …
-  3:5  error  Nutze <v-btn> statt <button>
+  2:8  error  No <div class="…"> for layout/styling: use v-container/v-row/v-col, v-sheet, or v-card …
+  3:5  error  Use <v-btn> instead of <button>
 ✖ 2 problems (2 errors, 0 warnings)
 
-# Lauf B: „Füge ein Suchfeld für Kundennamen hinzu" (keine weiteren Regeln im Kontext)
-# 1. Edit: rohes <input>, Plugin meldet, Modell korrigiert im nächsten Edit selbst:
--    <input type="text" placeholder="Kundennamen suchen..." />
+# Run B: “Add a search field for customer names” (no additional rules in context)
+# First edit: raw <input>; the plugin reports it, and the model corrects it in the next edit:
+-    <input type="text" placeholder="Search customer names..." />
 -  </div>
-+    <v-text-field label="Kundennamen suchen" />
++    <v-text-field label="Search customer names" />
 +  </v-sheet>
-# Ergebnis: npx eslint src → 0 Fehler, keine einzige Rückfrage
+# Result: npx eslint src → 0 errors, no clarification questions
 ```
 
-## Schicht 4: Skills und MCP richtig einordnen
+## Layer 4: Where skills and MCP fit
 
-Skills werden on demand geladen: Das Modell sieht nur die `description`
-und entscheidet selbst, ob es den Skill zieht. Für Dauerregeln wie „bau
-keine Divs" ist das das falsche Werkzeug, die gehören in die immer geladene
-AGENTS.md. Skills lohnen sich für tiefes, abrufbares Wissen
-(siehe [SKILL.md-Gerüst](./.opencode/skills/vuetify-patterns/SKILL.md)),
-und ihre description muss die Auslöse-Situationen konkret benennen, sonst
-werden sie nie geladen. Gültige Pfade: `.opencode/skills/<name>/SKILL.md`
-im Projekt oder `~/.config/opencode/skills/…` global.
+Skills are loaded on demand: the model sees a skill's `description` and decides
+whether to load its full instructions. Persistent rules such as “use Vuetify
+components for layout” belong in `AGENTS.md`. Skills are better suited to
+specialized reference material, such as the
+[Vuetify patterns template](./.opencode/skills/vuetify-patterns/SKILL.md).
+Their descriptions should clearly state when they apply.
 
-Und der Vuetify-MCP? Behalten, aber als das sehen, was er ist: ein
-Nachschlagewerk für API-Details. Verhalten steuern AGENTS.md und ESLint.
+Place project skills at `.opencode/skills/<name>/SKILL.md` or global skills
+under `~/.config/opencode/skills/`.
 
-## Grenzen und Praxis-Hinweise
+A Vuetify MCP server remains useful as a reference for API details.
+`AGENTS.md` supplies behavioral instructions, and ESLint checks compliance.
 
-- Der durchsetzende Teil (ESLint, Plugin, CI) ist deterministisch und
-  altert nicht. Der ausführende Teil (das Modell) ist probabilistisch:
-  sehr zuverlässig, aber kein Naturgesetz. Deshalb ist die CI der
-  Schlussriegel.
-- Eine wuchernde AGENTS.md verwässert. Faustregel: Was maschinell prüfbar
-  ist, gehört in den Linter; was nur manchmal relevant ist, in einen Skill;
-  nur was immer gelten muss und Urteilsvermögen braucht, in die AGENTS.md.
-- Bewusste Ausnahmen gehen per Auftrag („Lint-Verstöße sind hier
-  ausdrücklich ok"), dann setzt das Modell einen begründeten
-  `eslint-disable`-Kommentar.
-- Achtung: Beim Anthropic-Login „Claude Pro/Max" deaktiviert OpenCode
-  (seit 1.3.0) die Plugins. Mit API-Keys oder anderen Providern
-  (Google, Ollama, …) laufen sie normal.
+## Limitations and practical tips
 
-## Geprüft am 05.07.2026
+- Lint checks are deterministic; model behavior is probabilistic. Immediate
+  feedback encourages correction, but does not guarantee it. Use a required
+  CI check as the final gate.
+- Keep `AGENTS.md` focused. Put machine-checkable requirements in the linter,
+  occasional reference material in skills, and persistent rules that require
+  judgment in `AGENTS.md`.
+- For intentional exceptions, explicitly allow the violation in the request.
+  The assistant can then add an `eslint-disable` comment with a reason.
+- The original README notes that OpenCode disables plugins when using the
+  Anthropic “Claude Pro/Max” login, starting with OpenCode 1.3.0, while API-key
+  authentication and other providers such as Google and Ollama support them.
+  Treat this as a version-specific compatibility note and check your installed
+  OpenCode version before relying on the plugin.
 
-ESLint 10.6.0, eslint-plugin-vue 10.9.2, Node 22, OpenCode 1.17.13.
-ESLint-Config lokal gegen Beispieldateien ausgeführt (7 Treffer in bad.vue,
-0 in good.vue). Plugin live in echten OpenCode-Sessions verifiziert
-(Gemini 2.5 Flash, Qwen3-VL 32B, GLM-5.2): Feedback erreicht das Modell,
-Selbstkorrektur bis Lint grün, ohne Rückfragen.
+## Previously reported verification — July 5, 2026
 
-Quellen: [OpenCode Rules](https://opencode.ai/docs/rules/) ·
+The original README records tests with ESLint 10.6.0, eslint-plugin-vue 10.9.2,
+Node 22, and OpenCode 1.17.13:
+
+- Local ESLint checks against example files: 7 violations in `bad.vue` and
+  none in `good.vue`.
+- Live OpenCode sessions with Gemini 2.5 Flash, Qwen3-VL 32B, and GLM-5.2:
+  feedback reached the model, which corrected the code until lint passed
+  without asking for confirmation.
+
+These are historical results reported by the project, not new verification
+performed as part of this English translation.
+
+References: [OpenCode Rules](https://opencode.ai/docs/rules/) ·
 [OpenCode Skills](https://opencode.ai/docs/skills/) ·
 [OpenCode Plugins](https://opencode.ai/docs/plugins/) ·
 [vue/no-restricted-html-elements](https://eslint.vuejs.org/rules/no-restricted-html-elements.html) ·
